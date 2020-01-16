@@ -1,22 +1,29 @@
 {select: Select} = require "soupselect"
 HtmlParser = require "htmlparser"
 JSDom = require "jsdom"
-HttpClient = require 'scoped-http-client'
+HttpClient = require 'request'
 
 module.exports = (robot) ->
 
   unEntity = (str) ->
-    e = JSDom.jsdom().createElement("div")
+    e = new JSDom.JSDOM().window.document.createElement("div")
     e.innerHTML = str
     if e.childNodes.length == 0 then "" else e.childNodes[0].nodeValue
 
   robot.hear /(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?/i, (msg) ->
     httpResponse = (url) ->
-      HttpClient.create(url)
-      .header('User-Agent', "Satsuki/1.0 (Hubot 2.19.0) Web/1.1")
-      .header('Accept-Language', 'en-US,en;q=0.7')
-      .header('Cookie', "PREF=f6=42008")
-      .get(->) (err, res, body) ->
+      size = 0
+      options = {
+        uri: url,
+        encoding: null,
+        headers: {
+          "User-Agent": "Satsuki/1.0 (Hubot) Web/1.1",
+          "Accept-Language": "en-US,en;q=0.7",
+          "Cookie": "PREF=f6=42008"
+        },
+        jar: false
+      }
+      HttpClient options, (err, res, body) ->
         if err || !res
           console.log "HTTP got error:", err
         else if res.statusCode in [301, 302, 303]
@@ -55,10 +62,14 @@ module.exports = (robot) ->
             processResult(results[0])
         else
           msg.send "Error " + res.statusCode
+      .on 'data', (chunk) ->
+        size += chunk.length
+        if size > 1000000
+          this.abort()
 
     url = msg.match[0]
 
-    if url.match(/https?:\/\/(.+\.)?animebyt(\.es|es\.tv)/i) || url.match(/127\.0\.0\.1/i)
+    if url.match(/https?:\/\/(.+\.)?animebyt(\.es|es\.tv)/i) || url.match(/127\.0\.0\.1/i) || url.match(/\.(png|jpg|jpeg|gif|txt|zip|tar\.bz|js|css|pdf)/)
       return
     else
       try
